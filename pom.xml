@@ -8,6 +8,8 @@
         <module>chapter01-helloworld</module>
         <module>chapter02-formAuthenticate</module>
         <module>chapter02-userdetails</module>
+        <module>chapter04-captcha</module>
+        <module>chapter04-captcha-provider</module>
     </modules>
 
     <parent>

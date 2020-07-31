@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RestController;
 import javax.sql.DataSource;
 
 @SpringBootApplication
-@RestController
 public class FormAuthenticateApplication {
 
     public static void main(String[] args) {
