@@ -55,12 +55,103 @@ http
 
    >  SessionManagementConfigurer，CorsConfigurer，RememberMeConfigurer 都实现了SecurityConfigurer 接口；除了Spring Security 提供的过滤器外，我们可以添加自己的过滤器实现更多的安全功能，可以在 HttpSecurity 中实现
 
+```java
+public interface SecurityConfigurer<O, B extends SecurityBuilder<O>> {
+
+    // 各个配置器的初始化方法
+   void init(B builder) throws Exception;
+// 各个配置器被统一调用的配置方法
+   void configure(B builder) throws Exception;
+}
+```
+
+```java
+public final class SessionManagementConfigurer<H extends HttpSecurityBuilder<H>>
+    @Override
+	public void configure(H http) throws Exception {
+		SecurityContextRepository securityContextRepository = http
+				.getSharedObject(SecurityContextRepository.class);
+		SessionManagementFilter sessionManagementFilter = new SessionManagementFilter(
+				securityContextRepository, getSessionAuthenticationStrategy(http));
+		if (this.sessionAuthenticationErrorUrl != null) {
+			sessionManagementFilter.setAuthenticationFailureHandler(
+					new SimpleUrlAuthenticationFailureHandler(
+							this.sessionAuthenticationErrorUrl));
+		}
+		InvalidSessionStrategy strategy = getInvalidSessionStrategy();
+		if (strategy != null) {
+			sessionManagementFilter.setInvalidSessionStrategy(strategy);
+		}
+		AuthenticationFailureHandler failureHandler = getSessionAuthenticationFailureHandler();
+		if (failureHandler != null) {
+			sessionManagementFilter.setAuthenticationFailureHandler(failureHandler);
+		}
+		AuthenticationTrustResolver trustResolver = http
+				.getSharedObject(AuthenticationTrustResolver.class);
+		if (trustResolver != null) {
+			sessionManagementFilter.setTrustResolver(trustResolver);
+		}
+		sessionManagementFilter = postProcess(sessionManagementFilter);
+
+    // sessionManagementFilter 添加到过滤器上
+		http.addFilter(sessionManagementFilter);
+		if (isConcurrentSessionControlEnabled()) {
+			ConcurrentSessionFilter concurrentSessionFilter = createConccurencyFilter(http);
+
+			concurrentSessionFilter = postProcess(concurrentSessionFilter);
+			http.addFilter(concurrentSessionFilter);
+		}
+	}
+}
+```
+
+```java
+public final class HttpSecurity extends
+      AbstractConfiguredSecurityBuilder<DefaultSecurityFilterChain, HttpSecurity>
+      implements SecurityBuilder<DefaultSecurityFilterChain>,
+      HttpSecurityBuilder<HttpSecurity> {
+          
+          // 将自定义过滤器添加到指定过滤器之后
+    public HttpSecurity addFilterAfter(Filter filter, Class<? extends Filter> afterFilter) {
+            comparator.registerAfter(filter.getClass(), afterFilter);
+            return addFilter(filter);
+        }
+          
+          // 将自定义过滤器添加到指定过滤器之前
+  public HttpSecurity addFilterBefore(Filter filter,
+			Class<? extends Filter> beforeFilter) {
+		comparator.registerBefore(filter.getClass(), beforeFilter);
+		return addFilter(filter);
+	}
+        // 添加一个过滤器，必须是Spring security 自身提供的过滤器实例或者其继承过滤器
+          // 详见 FilterComparator 
+  public HttpSecurity addFilter(Filter filter) {
+		Class<? extends Filter> filterClass = filter.getClass();
+		if (!comparator.isRegistered(filterClass)) {
+			throw new IllegalArgumentException(
+					"The Filter class "
+							+ filterClass.getName()
+							+ " does not have a registered order and cannot be added without a specified order. Consider using addFilterBefore or addFilterAfter instead.");
+		}
+		this.filters.add(filter);
+		return this;
+	}
+         
+          // 添加一个过滤器在自定义过滤器位置
+     public HttpSecurity addFilterAt(Filter filter, Class<? extends Filter> atFilter) {
+		this.comparator.registerAt(filter.getClass(), atFilter);
+		return addFilter(filter);
+	}
+
+}
+```
+
 
 
 5. AuthenticationProvider 实现图形验证码
 
    > Spring Security中的主体（principal）。主体包含了所有能够经过验证而获得系统访问权限的用户、设备和其他系统。Spring Security通过一层包装将其定义为一个 Authentication。Authentication 中包含主体权限列表、主体凭据、主体详细信息，以及是否验证成功等信息。由于大部分场景下身份验证都是基于用户名和密码进行的，Spring Security 提供了一个 UsernamePasswordAuthenticationToken 用于代指这一类证明。UsernamePasswordAuthenticationToken 在各个 AuthenticationProvider 中流动，AuthenticationProvider  被定义为一个验证过程；一个完整的认证可以包含多个 AuthenticationProvider  ，一般由 ProviderManager 管理。ProviderManager 是由 UsernamePasswordAuthenticationFilter 调用的。所有的 AuthenticationProvider   包含的 Authentication 都来源于 UsernamePasswordAuthenticationFilter 
-   
+
    >
    >
    >UsernamePasswordAuthenticationFilter  本身并没有设置用户详细信息的流程，而是通过标准接口 AuthenticationDetailsSource 构建的，
