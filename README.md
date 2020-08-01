@@ -436,4 +436,6 @@ public class TokenBasedRememberMeServices extends AbstractRememberMeServices {
    - migrateSession  登录之后创建一个新的session，并将旧的session中的数据复制过来
    - changeSessionId  不创建新的会话，而是使用Servlet容器提供的会话固定保护
 
-   
+3.  会话并发控制问题
+
+   > 首先尝试将已经登录的旧会话注销（访问/logout）,理论上应该可以继续登录，但是 spring security 依然提示我们超过了最大会话数目。事实上，除非重启服务；否则用户很难将再次登录系统。这是应为 spring security 是通过监听 session 的销毁时间来触发会话信息表相关的清理工作的，但是我们并没有注册过相关的监听器，导致spring security 无法正常清理过期或者已经注销的会话
