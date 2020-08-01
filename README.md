@@ -439,3 +439,16 @@ public class TokenBasedRememberMeServices extends AbstractRememberMeServices {
 3.  会话并发控制问题
 
    > 首先尝试将已经登录的旧会话注销（访问/logout）,理论上应该可以继续登录，但是 spring security 依然提示我们超过了最大会话数目。事实上，除非重启服务；否则用户很难将再次登录系统。这是应为 spring security 是通过监听 session 的销毁时间来触发会话信息表相关的清理工作的，但是我们并没有注册过相关的监听器，导致spring security 无法正常清理过期或者已经注销的会话
+
+```java
+public class SessionRegistryImpl implements SessionRegistry,
+		ApplicationListener<SessionDestroyedEvent> {
+	
+	// principal自己编写的实体，必须要重写 hashCode和equals,否则session并发控制会不起作用，还会引发内存泄漏
+	/** <principal:Object,SessionIdSet> */
+	private final ConcurrentMap<Object, Set<String>> principals;
+	/** <sessionId:Object,SessionInformation> */
+	private final Map<String, SessionInformation> sessionIds;
+}
+```
+

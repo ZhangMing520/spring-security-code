@@ -26,14 +26,14 @@ import java.io.IOException;
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
 
-    @Bean
-    public UserDetailsService userDetailsService() {
-        InMemoryUserDetailsManager manager = new InMemoryUserDetailsManager();
-        manager.createUser(User.withUsername("admin").password("123").roles("USER", "ADMIN").build());
-        manager.createUser(User.withUsername("user").password("123").roles("USER").build());
-
-        return manager;
-    }
+//    @Bean
+//    public UserDetailsService userDetailsService() {
+//        InMemoryUserDetailsManager manager = new InMemoryUserDetailsManager();
+//        manager.createUser(User.withUsername("admin").password("123").roles("USER", "ADMIN").build());
+//        manager.createUser(User.withUsername("user").password("123").roles("USER").build());
+//
+//        return manager;
+//    }
 
     /**
      * 事件源（会话清理订阅 spring 事件，而非原生 HTTPSessionEvent）
