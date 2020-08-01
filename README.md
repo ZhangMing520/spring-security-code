@@ -452,3 +452,16 @@ public class SessionRegistryImpl implements SessionRegistry,
 }
 ```
 
+4. 集群会话的解决方案
+
+   - session 保持  
+
+     > 粘滞会话（sticky sessions），通常采用IP hash负载均衡策略将来自相同客户端的请求转发至相同的服务器上处理。存在一些缺陷。例如，某个营业部的网络使用相同IP出口，那么这个营业部所有的请求都将被转发到相同的服务器上，存在一定程度上的负载失衡
+
+   - session 复制
+
+     > 在集群服务器之间同步session数据，非常不可取
+
+   - session 共享
+
+     > 将 session 从服务器内存中抽离出来，集中存储到独立的数据容器，并由各个服务器共享。读写性能，稳定性以及网络IO都可能成为性能瓶颈。高可用部署的redis服务器为最优选择
