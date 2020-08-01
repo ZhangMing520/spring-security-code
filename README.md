@@ -417,3 +417,23 @@ public class TokenBasedRememberMeServices extends AbstractRememberMeServices {
 }
 ```
 
+##### 会话管理
+
+> 会话固定攻击、会话超时检测以及会话并发控制（一个账户是否能多处同时登录）
+
+> 会话就是无状态的HTTP实现用户状态可维持的一种解决方案。HTTP本身的无状态使得用户在与服务器的交互过程中，每个请求之间都没有关联性。当用户首次访问系统时候，系统为该用户生成一个sessionId，并添加到cookie中。在用户的会话期内，每个请求都自动携带该cookie，因此系统可以很轻易地识别出这是来自哪个用户的请求。
+
+> cookie被禁用，URL重写  http://www.baidu.com;jsessionid=xxx
+
+1. 会话固定攻击
+
+   > 黑客只需访问一次系统，将系统生成的sessionId提取并拼接到URL上，然后将该URL发给一些取得信任的用户。只要用户在session有效期内通过此URL进行的登录，该sessionId就会绑定到用户的身份，黑客便可以轻松享受同样的会话状态，完全不用用户名和密码
+
+2. sessionManagement是一个会话管理的配置器，防御会话攻击的策略，默认是 migrateSession，StrictHttpFirewall会拦截非法请求
+
+   - none  		不做任何变动，登录之后沿用旧的session
+   - newSession   登录之后创建一个新的 session 
+   - migrateSession  登录之后创建一个新的session，并将旧的session中的数据复制过来
+   - changeSessionId  不创建新的会话，而是使用Servlet容器提供的会话固定保护
+
+   
