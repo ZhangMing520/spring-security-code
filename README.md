@@ -465,3 +465,109 @@ public class SessionRegistryImpl implements SessionRegistry,
    - session 共享
 
      > 将 session 从服务器内存中抽离出来，集中存储到独立的数据容器，并由各个服务器共享。读写性能，稳定性以及网络IO都可能成为性能瓶颈。高可用部署的redis服务器为最优选择
+
+5. 旧密码加密迁移 BCryptPasswordEncoder
+   - 使用增量更新的方法。当用户输入的密码正确时候，判断数据库中的密码是否为  BCrypt 密文，如果不是，则尝试使用用户输入的密码重新生成 BCrypt 密文并写回到数据库
+   - 以旧的加密方案作为基础接入  BCrypt 加密。例如，旧方案的是MD5加密，即数据库中的所有密码都是 MD5形式的密码，那么直接把这些密码当做明文，先跑库生成 BCrypt 密文，再使用 encode和matches两个方法在执行 BCrypt 加密之前都先用 MD5 运算一遍即可
+
+##### 跨域与CORS
+
+> 通常情况下跨域请求时可以正常发起的，后端也正常进行了处理，只是在返回时候被浏览器拦截，导致响应内容不可使用
+
+> 平常所说的跨域实际上都是在讨论浏览器行为，包括各种 WebView 容器等
+
+> 不同站点间的访问存在跨域访问问题，同站点的访问可能也会遇到跨域问题，只要请求的URL和所在页面的URL首部不同即产生跨域
+>
+> URL首部：window.location.protocol + window.location.host ；从协议部分开始到端口部分结束，只要请求URL不同就被认为跨域，域名与域名对应的IP也不行
+
+- 在 http://a.baidu.com 下访问 https://a.baidu.com 资源会形成协议跨域
+- 在 a.baidu.com 访问 b.baidu.com 资源会形成主机跨域
+- 在 a.baidu.com:80 访问 a.baidu.com:8080 资源会形成端口跨域
+
+> 解决跨域问题，JSONP、Nginx转发和CORS等
+
+1. JSONP 
+
+   > 利用 script  src ，只支持 GET 请求跨域
+
+   ```javascript
+   <script src="http://xxx.com/users?callback=jsonp"/>
+       
+   var jsonp=function(data){
+       // 处理data数据
+       console.log(data);
+   }
+   
+   http://xxx.com/users?callback=jsonp 后端返回数据
+   
+   jsonp({"error_code":0,"message":"","data":[{"username":"aaa","sex":"男"}]})
+   ```
+
+2. CORS（不支持IE8以下版本浏览器）
+
+   > Cross-Origin Resource Sharing ，允许服务器声明其提供的资源允许哪些站点跨域使用。通常情况下，跨域请求即便在不被支持的情况下，服务器也会接收并进行处理，在CROS的规范中则避免了这个问题。浏览器首先会发起一个请求方法为OPTIONS的预检请求，用于确认服务器是否允许跨域，只有在得到许可后才会发出实际请求。预检请求还允许服务器通知浏览器跨域携带身份凭证（如cookie）
+
+```
+Access-Control-Allow-Origin: http://xxx.com
+Vary: Accept-Encoding, Origin  
+```
+
+> 如果设置了具体的站点信息，则响应头中 Vary 字段还需要携带Origin属性，因为服务器对不同的域会返回不同的内容
+
+- Access-Control-Allow-Methods 字段仅在预检请求的响应中指定有效，用于表明服务器允许跨域的HTTP方法，多个方法使用逗号隔开
+
+- Access-Control-Allow-Headers 字段仅在预检请求的响应中指定有效，用于表明服务器允许携带的首部字段，多个首部字段之间用逗号隔开
+
+- Access-Control-Allow-Age  字段用于指明本次预检请求的有效期，单位为秒。在有效期内，预检请求不需要再次发起。
+- Access-Control-Allow-Credentials  字段为true时候，浏览器会在接下来的真实请求中携带用户凭证信息（cookie等），服务器也可以使用 Set-Cookie 向用户浏览器写入新的cookie。使用 Access-Control-Allow-Credentials  时候，Access-Control-Allow-Origin 不应该设置为 * 
+
+3. CORS，三种访问控制场景 （spring security DefaultCorsProcessor  核心处理类）
+
+   - 简单请求：在CORS中，并非所有的跨域访问都会触发预检请求。例如，不携带自定义请求头信息的GET请求，HEAD请求，以及Content-Type 为 application/x-www-form-urlencoded、multipart/form-data或text/plain的 POST 请求，这类请求被称为简单请求。浏览器在发起请求时候，会在请求头中自动添加一个 Origin 属性，值为当前页面的  URL 首部，当服务器返回响应时候，若存在跨域访问控制属性，则浏览器会通过这些属性判断本次请求是否被允许
+
+     ```
+     HTTP/1.1 200 OK 
+     ...
+     Access-Control-Allow-Origin: http://xxx.com
+     
+     只需要后端在返回的响应头中添加 Access-Control-Allow-Origin 字段并填入允许跨域访问的站点即可
+     ```
+
+   - 预检请求：它会发送一个 OPTIONS 请求到目标站点，以查明该请求是否安全，防止请求对目标站点的数据造成破坏。若是请求以 GET、HEAD、POST以外的方法发起；或者使用 POST 方法，但请求的数据为 application/x-www-form-urlencoded、multipart/form-data或text/plain 以外的数据类型；再或者使用了自定义请求头，则都会被当成预检请求类型处理
+
+   - 带凭证的请求：携带了用户cookie信息的请求
+
+```javascript
+var request = new XMLHttpRequest();
+var url="http://xxx.com";
+if(request){
+    request.open('GET',url,true);
+    request.withCredentials=true;
+    request.onreadystatechange= function(state){
+       
+   }；
+   request.send() 
+}
+
+// 指定了withCredentials为true。浏览器在实际发出请求时候，将同时向服务器发送cookie，
+// 并期待在服务器返回的响应信息中指明Access-Control-Allow-Credentials 为true，否则浏览器会拦截，并抛出错误
+```
+
+##### 跨域请求伪造  （CSRFTester 检测，完全基于浏览器，非浏览器运行应改关闭CSRF）
+
+> 一种利用用户带登录态的cookie进行安全操作的攻击方式
+
+> 假如有一个博客网站，为激励用户写出高质量的博文，设定一个文章被点赞就能奖励现金的机制，于是有一个可用于点赞的API ，只需要传入id即可：http://blog.xxx.com/articles/like?id=?。安全策略上限定必须是本站有效登录用户才可以点赞，且每个用户对每篇文章仅仅可以点赞一次，防止无限刷赞的情况发生。如果博客文章的图片URL指向对应文章的点赞API。由于图片是浏览器自动加载的，所以每个查看过该文章的人都会不知不觉为其点赞。
+
+```html
+<!-- 表单恶意攻击 -->
+<form action="http://xx.bank.com/xxx/transfer" method="post">
+    <input type="hidden" name="money" value="1000"/>
+    <input type="hidden" name="to" value="hacker"/>
+    <input type="submit"  value="点我翻看美女照片"/>
+</form>
+```
+
+1. 防御 CSRF 攻击
+   - HTTP Refer 由浏览器添加的请求头字段，用于标识请求来源，无法轻易篡改该值。POST请求实行CSRF攻击的场景，必要条件就是诱使用户跳转到第三方页面，当校验到请求来自其他站点时候，就可以认为是CSRF攻击，从而拒绝服务
+   - CsrfToken  利用用户的登录态进行攻击，而用户的登录态记录在cookie中，添加一些并不存放于cookie的校验值，并在每个请求中都进行校验，便可以组织 CSRF 攻击。具体的做法是在用户登录时候，由系统发放一个 CsrfToken  值，系统记录该会话的 CsrfToken 值，之后在用户的任何请求中，都必须带上该 CsrfToken  值，并由系统进行校验。这种方法需要前端配合，包括存储 CsrfToken  值，以及在任何请求中携带 CsrfToken  值，改造工作量大。
