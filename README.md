@@ -1,3 +1,5 @@
+##### 认证与授权
+
 1. spring-security 最小依赖
 ```xml
 <dependencies>
@@ -49,7 +51,7 @@ http
 - httpBasic()    <http-basic>  表单认证方式  
 - csrf()      <csrf>    跨站请求伪造防护功能
 
-
+##### 图形验证码
 
 4.  SecurityConfigurer 接口
 
@@ -338,6 +340,80 @@ public abstract class AbstractUserDetailsAuthenticationProvider implements
    }
     
     ...
+}
+```
+
+##### 自动登录和注销登录
+
+7. 自动登录
+
+   > 将用户的登录信息保存在用户浏览器的cookie中，当用户下次访问时候，自动实现校验并建立登录态的一种机制
+
+- 用散列算法加密用户必要的登录信息并生成令牌；key 默认是随机生成的，重启服务，自动登录策略就会失效
+
+- 数据库等持久性数据存储机制用的持久化令牌；最核心的是series和token两个值，都用MD5散列过的随机字符串；series仅在用户使用密码重新登录时更新，token会在每一个session中重新生成；
+
+  > 解决了一个令牌可以同时在多端登录的问题，每个回话都会引发token的更新，即每个token仅支持单实例登录；
+
+  > 解决了自动登录不会导致series变更，而每次自动登录都需要同时验证series和token两个值，当该令牌还未使用过自动登录就被盗取时候，系统会在非法用户验证通过后刷新token值，此时在合法用户浏览器中，该token已经失效。当合法用户使用自动登录时候，由于series对应的token不同，系统可以推断该令牌可能已经被盗用，从而做一些处理。例如清理该用户的所有自动登录令牌，并通知用户可能已经被盗号等
+
+```java
+hashInfo = md5Hex(username + ":" + expirationTime + ":" + password + ":" + key)
+rememberCookie = base64(username + ":" + expirationTime + ":" + hashInfo )
+```
+
+> expirationTime 本次自动登录的有效期，key 为指定的一个散列盐值，用于防止令牌被修改。Security 先用base64解码获得用户名、过期时间和加密散列值；然后使用用户名获取密码；接着重新以该散列算法正向计算，并将计算结果与旧的加密散列值进行对比，从而确认该令牌是否失效
+
+```java
+public abstract class AbstractRememberMeServices implements RememberMeServices,
+      InitializingBean, LogoutHandler {
+   // ~ Static fields/initializers
+   // =====================================================================================
+
+   public static final String SPRING_SECURITY_REMEMBER_ME_COOKIE_KEY = "remember-me";
+   public static final String DEFAULT_PARAMETER = "remember-me";
+   public static final int TWO_WEEKS_S = 1209600;
+
+   private static final String DELIMITER = ":";
+
+   // ~ Instance fields
+   // ================================================================================================
+   protected final Log logger = LogFactory.getLog(getClass());
+
+   protected final MessageSourceAccessor messages = SpringSecurityMessageSource
+         .getAccessor();
+
+   private UserDetailsService userDetailsService;
+   private UserDetailsChecker userDetailsChecker = new AccountStatusUserDetailsChecker();
+   private AuthenticationDetailsSource<HttpServletRequest, ?> authenticationDetailsSource = new WebAuthenticationDetailsSource();
+
+   private String cookieName = SPRING_SECURITY_REMEMBER_ME_COOKIE_KEY;
+   private String cookieDomain;
+   private String parameter = DEFAULT_PARAMETER;
+   private boolean alwaysRemember;
+   private String key;
+        // 默认过期时间 2个星期
+   private int tokenValiditySeconds = TWO_WEEKS_S;
+ }
+```
+
+```java
+public class TokenBasedRememberMeServices extends AbstractRememberMeServices {
+
+    // 散列加密部分
+	protected String makeTokenSignature(long tokenExpiryTime, String username,
+			String password) {
+		String data = username + ":" + tokenExpiryTime + ":" + password + ":" + getKey();
+		MessageDigest digest;
+		try {
+			digest = MessageDigest.getInstance("MD5");
+		}
+		catch (NoSuchAlgorithmException e) {
+			throw new IllegalStateException("No MD5 algorithm available!");
+		}
+
+		return new String(Hex.encode(digest.digest(data.getBytes())));
+	}
 }
 ```
 
