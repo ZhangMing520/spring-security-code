@@ -571,3 +571,67 @@ if(request){
 1. 防御 CSRF 攻击
    - HTTP Refer 由浏览器添加的请求头字段，用于标识请求来源，无法轻易篡改该值。POST请求实行CSRF攻击的场景，必要条件就是诱使用户跳转到第三方页面，当校验到请求来自其他站点时候，就可以认为是CSRF攻击，从而拒绝服务
    - CsrfToken  利用用户的登录态进行攻击，而用户的登录态记录在cookie中，添加一些并不存放于cookie的校验值，并在每个请求中都进行校验，便可以组织 CSRF 攻击。具体的做法是在用户登录时候，由系统发放一个 CsrfToken  值，系统记录该会话的 CsrfToken 值，之后在用户的任何请求中，都必须带上该 CsrfToken  值，并由系统进行校验。这种方法需要前端配合，包括存储 CsrfToken  值，以及在任何请求中携带 CsrfToken  值，改造工作量大。
+
+##### HTTP认证
+
+1. HTTP基本认证4个步骤
+   - 客户端发起一条没有携带认证信息的请求
+   - 服务器返回一条 401 Unauthorized响应，并在WWW-Authentication 首部说明认证形式，当进行HTTP基本认证时候，WWW-Authentication会被设置为 Basic realm="被保护页面"
+   - 客户端收到 401 Unauthorized响应后，弹出对话框，询问用户名和密码。当用户完成后，客户端将用户名和密码使用冒号拼接并编码为Base64形式，然后放入请求的Authorization首部发送给服务器
+   - 服务器解码得到客户端发送来的用户名和密码，并在验证它们是正确的之后，返回客户端请求的报文
+
+> HTTP基本认证是一种无状态的认证方式，与表单认证相比，HTTP基本认证是一种基于HTTP层面的认证方式，无法携带session，即无法实现 remember-me 功能。另外，用户名和密码在传递时候仅做一次简单的Base64编码，实际开发中很少使用。如有必要，应使用加密的传输层（例如HTTPS）来保障安全
+
+2. HTTP摘要认证
+
+   > 使用对通信双方都可知的口令进行校验，且最终的传输数据并非明文形式。通常服务器携带的数据包括realm、opaque、nonce、qop等字段。对服务器而言，最重要字段是nonce；对于客户端而言，最重要字段是response
+
+   HTTP摘要认证中涉及的一些参数：
+
+   - username  用户名
+   - password  用户密码
+   - realm    认证域，由服务器返回
+   - opaque   透传字符串，客户端应该原样返回
+   - method  请求的方法
+   - nonce    由服务器生成的随机字符串
+   - nc      即nonce-count ，指请求的次数，用于计数，防止重放攻击。qop被指定时，nc也必须被指定
+   - cnonce    客户端发给服务器的随机字符串， qop被指定时，cnonce也必须被指定
+   - qop   保护级别，客户端根据此参数指定摘要算法。若取值为auth，则只进行身份验证；若取值为auth-int，则还需要校验内容完整性
+   - uri   请求的uri
+   - response  客户端根据算法算出的摘要值
+   - algorithm  摘要算法，目前仅支持MD5
+   - entity-body   页面实体，非消息实体，仅在auth-int中支持
+
+3. Spring Security 集成HTTP摘要认证
+
+   > 默认实现了qop为auth的摘要认证模式。如果在客户端最后发起的“回应”中，摘要有效但已经过期，那么Spring Security 会重新发回一个“挑战”，并增加 stale=true 字段告诉客户端不需要中心弹出验证框，用户名和密码是正确的，只需要使用新的nonce尝试即可
+
+   >验证的大致流程是：客户端首先按照约定的算法计算并发送 response，服务器接收之后，以同样的方式计算得到一个 response。如果两个 response 相同，则证明摘要正确。接着用 base64 解码原 nonce 等到过期时间，以验证该摘要是否还有效果
+
+   ```java
+   // 服务器 nonce 生成算法
+   base64(expirationTime + ":" + md5(expirationTime + ":" + key ))
+       
+   // expirationTime 默认为300s 
+   // DigestAuthenticationEntryPoint 
+   ```
+
+   response  qop未指定，默认算法如下
+
+   ```java
+   A1 = md5(username:realm:password)
+   A2 = md5(method:uri)
+   response = md5(A1:nonce:A2)
+   ```
+
+   qop 为 auth 
+
+   ```java
+   // DigestAuthUtils#generateDigest
+   
+   A1 = md5(username:realm:password)
+   A2 = md5(method:uri)
+   response = md5(A1:nonce:nc:cnonce:qop:A2)
+   ```
+
+   
